@@ -34,7 +34,7 @@ public class Launcher : MonoBehaviour
        
         if (!File.Exists(configPath))
         {
-            // Lưu mặc định cạnh launcher
+         
             extractPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Game");
 
            
@@ -47,7 +47,7 @@ public class Launcher : MonoBehaviour
             extractPath = File.ReadAllText(configPath);
         }
 
-        // 🔹 Kiểm tra file game có tồn tại không
+       
         string exePath = Path.Combine(extractPath, exeName);
 
         if (File.Exists(exePath))
@@ -79,7 +79,7 @@ public class Launcher : MonoBehaviour
            string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
             File.WriteAllText(configPath, extractPath);
 
-            // 🚀 Bắt đầu tải
+         
             StartDownload();
         }
     }
@@ -232,6 +232,36 @@ public class Launcher : MonoBehaviour
             }
         }
     }
+    void Update()
+    {
+        CheckIfGameRunning();
+    }
 
+    void CheckIfGameRunning()
+    {
+        string processName = Path.GetFileNameWithoutExtension(exeName); // Ví dụ: "NinjaHuyenThoai"
+        Process[] running = Process.GetProcessesByName(processName);
+
+        if (running.Length > 0)
+        {
+           
+            playButton.interactable = false;
+            statusText.text = "Running...";
+        }
+        else
+        {
+            
+            if (File.Exists(Path.Combine(extractPath, exeName)))
+            {
+                playButton.interactable = true;
+                statusText.text = "Play";
+            }
+            else
+            {
+                playButton.interactable = true;
+                statusText.text = "Download";
+            }
+        }
+    }
 
 }
