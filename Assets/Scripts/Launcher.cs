@@ -8,84 +8,104 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using SFB;
+
 public class Launcher : MonoBehaviour
 {
     [Header("UI")]
-    public Button downloadButton;
     public Button playButton;
     public Slider progressBar;
     public TextMeshProUGUI statusText;
-    public TextMeshProUGUI pathText; 
     public TextMeshProUGUI textPercent;
     private bool isDownloading = false;
+    public InstallPathPanel installPanel;
 
     [Header("Config")]
     public string downloadUrl = "http://192.168.1.8/Game/NinjaHuyenThoai.zip";
     public string exeName = "NinjaHuyenThoai.exe";
 
-    private string zipPath;
-    private string extractPath;
+    // 🔹 Link version file trên server
+    public string versionUrl = "http://192.168.1.8/Game/version.txt";
+
+    public string zipPath;
+    public string extractPath;
     private WebClient client;
+
+    private string localVersionPath => Path.Combine(extractPath, "version.txt");
+    public string localVersion = "0.0.0";
+    public string serverVersion = "0.0.0";
 
     void Start()
     {
         string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
 
-       
         if (!File.Exists(configPath))
         {
-         
             extractPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Game");
-
-           
             File.WriteAllText(configPath, extractPath);
             UnityEngine.Debug.Log("📝 Đã tạo file cấu hình install_path.txt tại: " + configPath);
         }
         else
         {
-            
             extractPath = File.ReadAllText(configPath);
         }
 
-       
+        // 🔹 Kiểm tra version
+        CheckVersion();
+    }
+
+    async void CheckVersion()
+    {
         string exePath = Path.Combine(extractPath, exeName);
 
-        if (File.Exists(exePath))
+        // 🔹 Đọc version cục bộ (nếu có)
+        if (File.Exists(localVersionPath))
+            localVersion = File.ReadAllText(localVersionPath).Trim();
+
+        // 🔹 Tải version từ server
+        using (WebClient wc = new WebClient())
+        {
+            try
+            {
+                serverVersion = wc.DownloadString(versionUrl).Trim();
+               
+            }
+            catch
+            {
+                UnityEngine.Debug.Log("⚠️ Không thể kiểm tra version.");
+                serverVersion = localVersion; 
+            }
+        }
+
+        // 🔹 So sánh version
+        if (!File.Exists(exePath))
+        {
+            statusText.text = "Download";
+            playButton.onClick.RemoveAllListeners();
+            playButton.onClick.AddListener(() => installPanel.Open(extractPath));
+        }
+        else if (serverVersion != localVersion)
+        {
+            statusText.text = $"Update ({localVersion} → {serverVersion})";
+            playButton.onClick.RemoveAllListeners();
+            playButton.onClick.AddListener(() => installPanel.Open(extractPath));
+        }
+        else
         {
             statusText.text = "Play";
             playButton.onClick.RemoveAllListeners();
             playButton.onClick.AddListener(PlayGame);
         }
-        else
-        {
-            statusText.text = "Download";
-            playButton.onClick.RemoveAllListeners();
-            playButton.onClick.AddListener(ChooseFolder);
-        }
     }
 
-
-    void ChooseFolder()
+    public void StartDownloadAtPath()
     {
-        var paths = StandaloneFileBrowser.OpenFolderPanel("Chọn nơi lưu game", "", false);
-        if (paths.Length > 0 && !string.IsNullOrEmpty(paths[0]))
-        {
-            
-            string basePath = paths[0];          
-            extractPath = Path.Combine(basePath, "NinjaHuyenThoai");         
-            if (!Directory.Exists(extractPath))
-                Directory.CreateDirectory(extractPath);          
-            zipPath = Path.Combine(extractPath, "Game.zip");       
-           string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
-            File.WriteAllText(configPath, extractPath);
-
-         
-            StartDownload();
-        }
+        if (!Directory.Exists(extractPath))
+            Directory.CreateDirectory(extractPath);
+        zipPath = Path.Combine(extractPath, "Game.zip");
+        string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
+        File.WriteAllText(configPath, extractPath);
+        StartDownload();
     }
-
-
-
 
     void StartDownload()
     {
@@ -94,7 +114,19 @@ public class Launcher : MonoBehaviour
             statusText.text = "⚠️ Hãy chọn thư mục lưu trước!";
             return;
         }
-
+        using (WebClient wc = new WebClient())
+        {
+            try
+            {
+                serverVersion = wc.DownloadString(versionUrl).Trim();
+                localVersion = serverVersion;
+            }
+            catch
+            {
+                UnityEngine.Debug.Log("⚠️ Không thể kiểm tra version.");
+                serverVersion = localVersion;
+            }
+        }
         if (File.Exists(zipPath)) File.Delete(zipPath);
         isDownloading = true;
 
@@ -107,7 +139,6 @@ public class Launcher : MonoBehaviour
         client.DownloadFileCompleted += DownloadFileCompleted;
         progressBar.value = 0;
         playButton.interactable = false;
-       
 
         client.DownloadFileAsync(new Uri(downloadUrl), zipPath);
         progressBar.gameObject.SetActive(true);
@@ -144,23 +175,24 @@ public class Launcher : MonoBehaviour
             {
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
-                    
-                    string destinationPath = Path.GetFullPath(Path.Combine(extractPath, entry.FullName));                   
+                    string destinationPath = Path.GetFullPath(Path.Combine(extractPath, entry.FullName));
                     if (!destinationPath.StartsWith(extractPath, StringComparison.OrdinalIgnoreCase))
-                        continue;                 
+                        continue;
                     if (string.IsNullOrEmpty(entry.Name))
                     {
                         Directory.CreateDirectory(destinationPath);
                         continue;
-                    }                  
-                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));                    
+                    }
+                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
                     entry.ExtractToFile(destinationPath, true);
                 }
             }
-            string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
-            File.WriteAllText(configPath, extractPath);
+
             if (File.Exists(zipPath))
                 File.Delete(zipPath);
+
+            // 🔹 Lưu version mới
+            File.WriteAllText(localVersionPath, serverVersion);
 
             statusText.text = "Play";
             playButton.onClick.RemoveAllListeners();
@@ -176,30 +208,11 @@ public class Launcher : MonoBehaviour
         }
     }
 
-    
-
-
     void PlayGame()
     {
         string exePath = Path.Combine(extractPath, exeName);
-
         if (!File.Exists(exePath))
-        {
-            
-            var paths = StandaloneFileBrowser.OpenFolderPanel("Chọn lại thư mục game", "", false);
-            if (paths.Length > 0 && !string.IsNullOrEmpty(paths[0]))
-            {
-                extractPath = paths[0];
-                File.WriteAllText(Path.Combine(Application.persistentDataPath, "install_path.txt"), extractPath);
-                exePath = Path.Combine(extractPath, exeName);
-            }
-
-            if (!File.Exists(exePath))
-            {
-               
-                return;
-            }
-        }
+            return;
 
         try
         {
@@ -215,23 +228,7 @@ public class Launcher : MonoBehaviour
             statusText.text = "❌ Lỗi khi mở game: " + ex.Message;
         }
     }
-    void OnApplicationQuit()
-    {
-        if (isDownloading && File.Exists(zipPath))
-        {
-            try
-            {
-                client?.CancelAsync(); 
-                Thread.Sleep(200);     
-                File.Delete(zipPath); 
-               
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning("⚠️ Không thể xóa file đang tải: " + ex.Message);
-            }
-        }
-    }
+
     void Update()
     {
         CheckIfGameRunning();
@@ -239,19 +236,18 @@ public class Launcher : MonoBehaviour
 
     void CheckIfGameRunning()
     {
-        string processName = Path.GetFileNameWithoutExtension(exeName); // Ví dụ: "NinjaHuyenThoai"
+        string processName = Path.GetFileNameWithoutExtension(exeName);
         Process[] running = Process.GetProcessesByName(processName);
 
         if (running.Length > 0)
         {
-           
             playButton.interactable = false;
             statusText.text = "Running...";
+            return;
         }
-        else
+        if (File.Exists(Path.Combine(extractPath, exeName)))
         {
-            
-            if (File.Exists(Path.Combine(extractPath, exeName)))
+            if(serverVersion == localVersion)
             {
                 playButton.interactable = true;
                 statusText.text = "Play";
@@ -259,9 +255,14 @@ public class Launcher : MonoBehaviour
             else
             {
                 playButton.interactable = true;
-                statusText.text = "Download";
+                statusText.text = "Update";
             }
+           
+        }
+        else
+        {
+            playButton.interactable = true;
+            statusText.text = "Download";
         }
     }
-
 }
