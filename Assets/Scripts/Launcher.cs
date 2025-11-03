@@ -8,6 +8,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using SFB;
+using UnityEngine.Rendering;
 
 public class Launcher : MonoBehaviour
 {
@@ -18,13 +19,13 @@ public class Launcher : MonoBehaviour
     public TextMeshProUGUI textPercent;
     private bool isDownloading = false;
     public InstallPathPanel installPanel;
-
+    public BorderlessLauncher borderlessLauncher;
     [Header("Config")]
-    public string downloadUrl = "http://192.168.1.8/Game/NinjaHuyenThoai.zip";
+    public string downloadUrl = "http://192.168.1.26/Game/NinjaHuyenThoai.zip";
     public string exeName = "NinjaHuyenThoai.exe";
 
     // 🔹 Link version file trên server
-    public string versionUrl = "http://192.168.1.8/Game/version.txt";
+    public string versionUrl = "http://192.168.1.26/Game/version.txt";
 
     public string zipPath;
     public string extractPath;
@@ -36,6 +37,9 @@ public class Launcher : MonoBehaviour
 
     void Start()
     {
+        borderlessLauncher.StartA();
+        Screen.sleepTimeout = SleepTimeout.NeverSleep;
+        Screen.SetResolution(1280, 720, fullscreenMode: FullScreenMode.Windowed);
         string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
 
         if (!File.Exists(configPath))
@@ -87,8 +91,9 @@ public class Launcher : MonoBehaviour
         {
             statusText.text = $"Update ({localVersion} → {serverVersion})";
             playButton.onClick.RemoveAllListeners();
-            playButton.onClick.AddListener(() => installPanel.Open(extractPath));
+            playButton.onClick.AddListener(StartDownloadAtPath); // Dùng lại đường dẫn cũ, không mở panel chọn lại
         }
+
         else
         {
             statusText.text = "Play";
@@ -229,7 +234,7 @@ public class Launcher : MonoBehaviour
         }
     }
 
-    void Update()
+    void LateUpdate()
     {
         CheckIfGameRunning();
     }
