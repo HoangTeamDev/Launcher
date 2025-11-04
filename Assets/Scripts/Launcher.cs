@@ -34,12 +34,16 @@ public class Launcher : MonoBehaviour
     private string localVersionPath => Path.Combine(extractPath, "version.txt");
     public string localVersion = "0.0.0";
     public string serverVersion = "0.0.0";
-
+    private void Awake()
+    {
+        Screen.sleepTimeout = SleepTimeout.NeverSleep;
+        Screen.SetResolution(1280, 720, fullscreenMode: FullScreenMode.Windowed);
+    }
     void Start()
     {
         borderlessLauncher.StartA();
-        Screen.sleepTimeout = SleepTimeout.NeverSleep;
-        Screen.SetResolution(1280, 720, fullscreenMode: FullScreenMode.Windowed);
+      
+      
         string configPath = Path.Combine(Application.persistentDataPath, "install_path.txt");
 
         if (!File.Exists(configPath))
@@ -55,6 +59,7 @@ public class Launcher : MonoBehaviour
 
         // 🔹 Kiểm tra version
         CheckVersion();
+        playButton.interactable = true;
     }
 
     async void CheckVersion()
